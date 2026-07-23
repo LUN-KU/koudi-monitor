@@ -1,0 +1,73 @@
+name: 扣抵值監測
+
+on:
+  schedule:
+    # cron 用 UTC，台灣時間 = UTC + 8
+    - cron: "0,30 1-4 * * 1-5"   # 台灣 09:30–12:30 每 30 分：盤中掃描
+    - cron: "0 5 * * 1-5"        # 台灣 13:00：盤中掃描（尾盤）
+    - cron: "30 6 * * 1-5"       # 台灣 14:30：收盤掃描
+    - cron: "0 2 * * 6"          # 台灣週六 10:00：每週復盤
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 手動執行哪一種
+        required: true
+        default: intraday
+        type: choice
+        options: [intraday, close, weekly]
+
+concurrency:
+  group: koudi-monitor
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 決定執行模式
+        id: mode
+        run: |
+          if [ -n "${{ inputs.mode }}" ]; then
+            echo "mode=${{ inputs.mode }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "30 6 * * 1-5" ]; then
+            echo "mode=close" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "0 2 * * 6" ]; then
+            echo "mode=weekly" >> $GITHUB_OUTPUT
+          else
+            echo "mode=intraday" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 收盤掃描
+        if: steps.mode.outputs.mode == 'close'
+        run: |
+          python3 fetch_k.py
+          python3 close_scan.py
+
+      - name: 盤中掃描
+        if: steps.mode.outputs.mode == 'intraday'
+        run: python3 intraday_scan.py
+
+      - name: 每週復盤
+        if: steps.mode.outputs.mode == 'weekly'
+        run: python3 weekly_review.py
+
+      - name: 存回資料（K線快取與警示紀錄）
+        run: |
+          git config user.name "koudi-monitor"
+          git config user.email "actions@github.com"
+          git add -A .
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: 更新監測資料 [skip ci]"
+          git pull --rebase --autostash
+          git push
