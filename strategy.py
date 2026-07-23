@@ -161,17 +161,38 @@ def intraday_levels(rows):
 
 
 def intraday_signals(lv, price):
-    """比對現價與關鍵價位，回傳觸發的訊號清單。"""
+    """比對現價與關鍵價位，回傳觸發的訊號清單（dict）。
+    賣訊帶 stop_level（＝停損點，用扣抵值），供 stop_gate 做時間閘控。"""
     ma5 = (lv["ma5_partial"] + price) / 5
     sigs = []
     if price > lv["base"] and price >= lv["ded"] and price > lv["prev_high"]:
-        sigs.append(("進場觀察", f"站上扣抵值 {lv['ded']} 並過昨高 {lv['prev_high']}"))
+        sigs.append({"kind": "進場觀察", "detail": f"站上扣抵值 {lv['ded']} 並過昨高 {lv['prev_high']}"})
     elif price >= lv["ded"] and lv["prev_close"] < lv["ded"]:
-        sigs.append(("轉強", f"由下站回扣抵值 {lv['ded']}"))
+        sigs.append({"kind": "轉強", "detail": f"由下站回扣抵值 {lv['ded']}"})
     if price < lv["ded"] and lv["prev_close"] >= lv["ded"]:
-        sigs.append(("賣訊", f"跌破扣抵值 {lv['ded']}（策略第一賣訊）"))
+        sigs.append({"kind": "賣訊", "detail": f"跌破扣抵值（停損點）{lv['ded']}",
+                     "stop_level": lv["ded"]})
     if price < lv["prev_low"]:
-        sigs.append(("警戒", f"跌破昨日低點 {lv['prev_low']}"))
+        sigs.append({"kind": "警戒", "detail": f"跌破昨日低點 {lv['prev_low']}"})
     if price < ma5 and lv["prev_close"] >= ma5:
-        sigs.append(("警戒", f"跌破 MA5 {ma5:.2f}"))
+        sigs.append({"kind": "警戒", "detail": f"跌破 MA5 {ma5:.2f}"})
     return sigs
+
+
+def taiwan_now():
+    """台灣時間（不論主機時區，雲端跑在 UTC 也正確）。"""
+    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=8)
+
+
+def stop_gate(price, stop_level, tw=None, deep_pct=7.0, confirm=(13, 15)):
+    """停損訊號時間閘控。回傳 (是否現在發送, 附註文字)。
+
+    規則：13:15 前先按住不發，除非急殺跌破停損點逾 7%（立即出場）；
+    到 13:15 仍沒站回停損點才發出止損出場通知。
+    """
+    tw = tw or taiwan_now()
+    if price <= stop_level * (1 - deep_pct / 100):
+        return True, f"急殺跌破停損點逾{deep_pct:.0f}%，立即出場"
+    if (tw.hour, tw.minute) >= confirm:
+        return True, f"{confirm[0]:02d}:{confirm[1]:02d} 仍未站回停損點，確認止損出場"
+    return False, None

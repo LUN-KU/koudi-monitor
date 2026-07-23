@@ -29,12 +29,19 @@ def main():
             levels[stk] = (info["name"], lv)
 
     prices = quote.get_prices(list(levels))
+    tw = strategy.taiwan_now()
     hits = []
     for stk, (name, lv) in levels.items():
         q = prices.get(stk)
         if not q:
             continue
-        for kind, detail in strategy.intraday_signals(lv, q["price"]):
+        for sig in strategy.intraday_signals(lv, q["price"]):
+            kind, detail = sig["kind"], sig["detail"]
+            if "stop_level" in sig:
+                fire, note = strategy.stop_gate(q["price"], sig["stop_level"], tw)
+                if not fire:
+                    continue
+                detail = f"{detail}｜{note}"
             if alerts.sent_today(kind, stk):
                 continue
             hits.append({"kind": kind, "stk": stk, "name": name,
@@ -47,7 +54,7 @@ def main():
 
     hits.sort(key=lambda h: (PRIORITY.get(h["kind"], 9), -abs(h["chg"])))
     tracked = alerts.tracked()
-    lines = [f"<b>⚡ 盤中訊號 {datetime.datetime.now().strftime('%m/%d %H:%M')}</b>", ""]
+    lines = [f"<b>⚡ 盤中訊號 {tw.strftime('%m/%d %H:%M')}</b>", ""]
     for h in hits:
         icon = {"賣訊": "🔴", "警戒": "🟡", "進場觀察": "🟢", "轉強": "🔵"}.get(h["kind"], "•")
         mark = "（持有中）" if h["stk"] in tracked else ""
