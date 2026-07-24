@@ -84,6 +84,7 @@ def main():
         lines.append(f"{icon} <b>{h['kind']}</b> {h['stk']} {h['name']} "
                      f"{h['price']} ({h['chg']:+.1f}%){mark}\n   {h['detail']}")
     lines.append("")
+    lines.append('📊 <a href="https://lun-ku.github.io/koudi-monitor/dashboard.html">開啟儀表板看全部標的狀態</a>')
     lines.append("<i>簡化版初篩訊號，進場前請自行確認量能與五分 K。非投資建議。</i>")
     msg = "\n".join(lines)
 

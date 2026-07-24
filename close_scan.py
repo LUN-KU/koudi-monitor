@@ -51,6 +51,7 @@ def build():
             lines.append(f"• {r['stk']} {r['name']} 收{r['close']}｜{'；'.join(r['exits'])}")
         lines.append("")
 
+    lines.append('📊 <a href="https://lun-ku.github.io/koudi-monitor/dashboard.html">開啟儀表板看全部標的狀態</a>')
     lines.append(f"<i>被濾掉 {len(dead)} 檔。本訊息為技術面判斷輔助，非投資建議。</i>")
     return "\n".join(lines), alive[:TOP_N]
 
