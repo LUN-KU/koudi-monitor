@@ -16,20 +16,35 @@ PRIORITY = {"賣訊": 0, "進場觀察": 1, "轉強": 2, "警戒": 3}
 
 def main():
     dry = "--dry" in sys.argv
+    tw = strategy.taiwan_now()
+
+    # 交易時段守門：非台股盤中（週一~五 09:00–13:35）一律不掃描、不發通知，
+    # 避免 GitHub 排程誤點到收盤後才觸發、拿收盤價亂算亂發。
+    if not dry and (tw.weekday() >= 5
+                    or not (datetime.time(9, 0) <= tw.time() <= datetime.time(13, 35))):
+        print("非交易時段，略過盤中掃描", tw.strftime("%m/%d %H:%M"))
+        return
+
     data = strategy.load_kdata()
-    today = datetime.date.today()
+    today = tw.date()
 
     levels = {}
+    stale = []
     for stk, info in data.items():
         rows = sorted(info["rows"], key=lambda r: strategy.to_date(r["d"]))
         if rows and strategy.to_date(rows[-1]["d"]) == today:
             rows = rows[:-1]
+        # 資料新鮮度：最新 K 線離今天超過 6 天視為殘缺/過期，跳過不亂算
+        if not rows or (today - strategy.to_date(rows[-1]["d"])).days > 6:
+            stale.append(stk)
+            continue
         lv = strategy.intraday_levels(rows)
         if lv:
             levels[stk] = (info["name"], lv)
+    if stale:
+        print("資料過期跳過:", stale)
 
     prices = quote.get_prices(list(levels))
-    tw = strategy.taiwan_now()
     hits = []
     for stk, (name, lv) in levels.items():
         q = prices.get(stk)
