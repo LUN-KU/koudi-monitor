@@ -62,31 +62,6 @@ def entry_plan(r):
     }
 
 
-def exit_plan(r, pos):
-    close = r["close"]
-    cost = pos.get("cost")
-    stop = pos.get("stop") or r["stop"]
-    target = pos.get("target")
-    pnl = (close - cost) / cost * 100 if cost else None
-    rows = []
-    # 止損
-    rows.append(("止損", f"跌破 {fmt(stop)} 出場",
-                 f"距現價 {pct((stop - close) / close * 100)}", "stop"))
-    rows.append(("第一賣訊", f"跌破扣抵值 {fmt(r['ded'])}",
-                 f"距現價 {pct((r['ded'] - close) / close * 100)}", "stop"))
-    # 停利
-    if target:
-        rows.append(("停利目標", f"觸及 {fmt(target)} 分批出",
-                     f"還有 {pct((target - close) / close * 100)}", "profit"))
-    trail = r["exits"] or []
-    if any("警戒" in e or "出場" in e for e in trail):
-        rows.append(("移動出場", "；".join(trail), "已觸發，留意了結", "warn"))
-    else:
-        rows.append(("移動出場", "守住扣抵值續抱；扣抵值變高＋長上引線／大黑K／價跌量增 → 獲利了結",
-                     "尚未觸發", "ok"))
-    return {"stop": stop, "target": target, "pnl": pnl, "rows": rows}
-
-
 # ---------- HTML ----------
 
 CSS = """
@@ -172,35 +147,58 @@ def render():
         last_d = f"{dt.year}/{dt.month:02d}/{dt.day:02d}（週{'一二三四五六日'[dt.weekday()]}）"
 
     # 持倉區
-    pos_html = []
+    pos_rows = []
     for stk, pos in positions.items():
         r = r_all.get(stk)
         if not r:
             continue
-        ep = exit_plan(r, pos)
-        pnl = ep["pnl"]
-        pnl_html = ""
-        if pnl is not None:
-            cls = "up" if pnl >= 0 else "down"
-            pnl_html = f'<span class="pnl num {cls}">{pct(pnl)}</span>'
-        conds = "".join(
-            f'<span class="k {c}">{html.escape(k)}</span>'
-            f'<span class="v">{html.escape(v)}</span>'
-            f'<span class="d num">{html.escape(d)}</span>'
-            for k, v, d, c in ep["rows"])
-        cost = pos.get("cost")
-        meta = f'成本 {fmt(cost)}' + (f'｜{fmt(pos["shares"])} 股' if pos.get("shares") else "")
-        pos_html.append(
-            f'<div class="pos"><div class="pos-hd">'
-            f'<span class="code">{stk} {html.escape(r["name"])}</span>'
-            f'<span class="price num">現價 {fmt(r["close"])}｜{meta}</span>{pnl_html}</div>'
-            f'<div class="cond">{conds}</div></div>')
-    if not pos_html:
+        close = r["close"]
+        stop = pos.get("stop") or r["stop"]
+        ded = r["ded"]
+        triggered = bool(r["exits"])
+        pos_rows.append({
+            "stk": stk, "name": r["name"], "close": close, "chg": r["chg_pct"],
+            "stop": stop, "stop_gap": (stop - close) / close * 100,
+            "ded": ded, "ded_gap": (ded - close) / close * 100,
+            "cost": pos.get("cost"), "target": pos.get("target"),
+            "triggered": triggered, "exit_txt": "；".join(r["exits"]) if triggered else "守扣抵值續抱",
+            "breached": close <= stop,
+        })
+    # 最該注意的排前面：已觸發移動出場 > 已破止損 > 距止損近
+    pos_rows.sort(key=lambda p: (not p["triggered"], not p["breached"], p["stop_gap"]))
+
+    trs_pos = []
+    for p in pos_rows:
+        pnl_cell = "—"
+        if p["cost"]:
+            pl = (p["close"] - p["cost"]) / p["cost"] * 100
+            pnl_cell = f'<span class="num {"up" if pl >= 0 else "down"}">{pct(pl)}</span>'
+        stop_cls = "warn" if p["breached"] else ""
+        move = (f'<span class="pill bad">⚠️ 了結</span>' if p["triggered"]
+                else '<span class="pill watch">續抱</span>')
+        trs_pos.append(
+            f'<tr><td class="name">{p["stk"]} {html.escape(p["name"])}</td>'
+            f'<td class="num">{fmt(p["close"])}</td>'
+            f'<td class="num {"up" if p["chg"] >= 0 else "down"}">{pct(p["chg"])}</td>'
+            f'<td>{pnl_cell}</td>'
+            f'<td class="num {stop_cls}">{fmt(p["stop"])}</td>'
+            f'<td class="num">{pct(p["stop_gap"])}</td>'
+            f'<td class="num">{fmt(p["ded"])}</td>'
+            f'<td class="num">{pct(p["ded_gap"])}</td>'
+            f'<td class="name" style="white-space:normal">{move} '
+            f'<span style="color:var(--muted);font-size:12px">{html.escape(p["exit_txt"])}</span></td>'
+            f'</tr>')
+    if not trs_pos:
         pos_section = ('<div class="empty">目前沒有持倉。買進後告訴我，或執行：<br>'
                        '<code>python3 manage_positions.py --add 代號 成本=價格 股數=張數 停損=價格 目標=價格</code>'
                        '<br>加入後這裡就會顯示每檔的止損與停利條件。</div>')
     else:
-        pos_section = "".join(pos_html)
+        pos_section = (
+            '<div class="tablewrap"><table><thead><tr>'
+            '<th class="name">標的</th><th>現價</th><th>漲跌</th><th>損益</th>'
+            '<th>止損</th><th>距止損</th><th>賣訊(扣抵值)</th><th>距賣訊</th>'
+            '<th class="name">移動出場</th></tr></thead><tbody>'
+            + "".join(trs_pos) + '</tbody></table></div>')
 
     # 觀察清單表
     rows = sorted(r_all.items(),

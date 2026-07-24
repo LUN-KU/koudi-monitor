@@ -6,8 +6,14 @@
 import json, time, urllib.request, sys, os, datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WATCH = json.load(open(os.path.join(HERE, "watchlist.json")))
 OUT = os.path.join(HERE, "kdata.json")
+
+# 抓取範圍＝觀察清單 ∪ 持倉，確保持倉標的也有 K 線可算出場條件
+WATCH = json.load(open(os.path.join(HERE, "watchlist.json")))
+_pos_path = os.path.join(HERE, "positions.json")
+if os.path.exists(_pos_path):
+    for _code, _rec in json.load(open(_pos_path)).items():
+        WATCH.setdefault(_code, _rec.get("name") or _code)
 
 MONTHS = sys.argv[1:3] if len(sys.argv) >= 3 else None
 if not MONTHS:
