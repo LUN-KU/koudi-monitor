@@ -42,24 +42,53 @@ def analyze_all():
     return out
 
 
-# ---------- 條件文字 ----------
+# ---------- 資料組裝（今日關鍵價位 ＋ 可選盤中即時價）----------
 
-def entry_plan(r):
-    trig = max(r["ded"], r["prev_high"])
-    gap = (trig - r["close"]) / r["close"] * 100
-    risk = (r["close"] - r["stop"]) / r["close"] * 100
-    if r["killed"]:
-        status, cls = "不符濾網", "bad"
-    elif r["score"] >= 3:
-        status, cls = "可進場觀察", "go"
-    else:
-        status, cls = "候選觀察", "watch"
-    return {
-        "status": status, "cls": cls,
-        "trigger": trig, "gap": gap, "stop": r["stop"], "risk": risk,
-        "ded": r["ded"], "reason": "；".join(r["killed"]) if r["killed"] else "",
-        "notes": "、".join(n for n in r["notes"] if not n.startswith("-")),
-    }
+def build_view(realtime):
+    """回傳 {stk: 顯示欄位}。價位用今日關鍵價位（intraday_levels，與盤中提醒一致），
+    盤中模式套即時價、否則用最後收盤價。濾網狀態沿用收盤評分（analyze）。"""
+    import quote
+    data = strategy.load_kdata()
+    r_all = analyze_all()
+    today = strategy.taiwan_now().date()
+
+    prices = {}
+    if realtime:
+        try:
+            prices = quote.get_prices(list(data))
+        except Exception:
+            prices = {}
+
+    view = {}
+    last_close_date = None
+    for stk, info in data.items():
+        rows = sorted(info["rows"], key=lambda x: strategy.to_date(x["d"]))
+        if not rows:
+            continue
+        last_dt = strategy.to_date(rows[-1]["d"])
+        last_close_date = max(last_close_date, last_dt) if last_close_date else last_dt
+        hist = rows[:-1] if last_dt == today else rows
+        lv = strategy.intraday_levels(hist)
+        if not lv:
+            continue
+        q = prices.get(stk)
+        today_close = rows[-1]["c"] if last_dt == today else None
+        price = q["price"] if q else (today_close if today_close is not None else rows[-1]["c"])
+        prev_close = lv["prev_close"]
+        ana = r_all.get(stk)
+        trigger = max(lv["ded"], lv["prev_high"])
+        stop = lv["prev_low"]
+        view[stk] = {
+            "name": info["name"], "price": price,
+            "chg": (price - prev_close) / prev_close * 100 if prev_close else 0,
+            "trigger": trigger, "gap": (trigger - price) / price * 100,
+            "stop": stop, "stop_gap": (stop - price) / price * 100, "breached": price <= stop,
+            "ded": lv["ded"], "ded_gap": (lv["ded"] - price) / price * 100, "below_ded": price < lv["ded"],
+            "killed": ana["killed"] if ana else [], "score": ana["score"] if ana else 0,
+            "exits": ana["exits"] if ana else [],
+            "live": bool(q),
+        }
+    return view, last_close_date
 
 
 # ---------- HTML ----------
@@ -136,49 +165,62 @@ tr:last-child td{border-bottom:none}
 """
 
 
-def render():
-    r_all = analyze_all()
-    wl = load_json("watchlist.json", {})
+def render(realtime=False):
+    view, last_close_date = build_view(realtime)
     positions = load_json("positions.json", {})
-    last_d = max((r["last_d"] for r in r_all.values()),
-                 key=lambda d: strategy.to_date(d), default="—")
-    if last_d != "—":
-        dt = strategy.to_date(last_d)
-        last_d = f"{dt.year}/{dt.month:02d}/{dt.day:02d}（週{'一二三四五六日'[dt.weekday()]}）"
+    tw = strategy.taiwan_now()
+
+    if last_close_date:
+        d = last_close_date
+        wk = "一二三四五六日"[d.weekday()]
+        last_d = f"{d.year}/{d.month:02d}/{d.day:02d}（週{wk}）"
+    else:
+        last_d = "—"
+
+    if realtime:
+        mode = f'盤中即時 · 更新 {tw.strftime("%m/%d %H:%M")}'
+        price_note = "現價為盤中即時價"
+        refresh = '<meta http-equiv="refresh" content="180">'
+    else:
+        mode = f'收盤 · 資料日 {last_d}'
+        price_note = "現價為收盤價快照"
+        refresh = ""
 
     # 持倉區
     pos_rows = []
     for stk, pos in positions.items():
-        r = r_all.get(stk)
-        if not r:
+        v = view.get(stk)
+        if not v:
             continue
-        close = r["close"]
-        stop = pos.get("stop") or r["stop"]
-        ded = r["ded"]
-        triggered = bool(r["exits"])
+        stop = pos.get("stop") or v["stop"]
+        price = v["price"]
+        triggered = v["below_ded"] or bool(v["exits"])
+        if v["below_ded"]:
+            exit_txt = "跌破扣抵值，觸發賣訊"
+        elif v["exits"]:
+            exit_txt = "；".join(v["exits"])
+        else:
+            exit_txt = "守扣抵值續抱"
         pos_rows.append({
-            "stk": stk, "name": r["name"], "close": close, "chg": r["chg_pct"],
-            "stop": stop, "stop_gap": (stop - close) / close * 100,
-            "ded": ded, "ded_gap": (ded - close) / close * 100,
-            "cost": pos.get("cost"), "target": pos.get("target"),
-            "triggered": triggered, "exit_txt": "；".join(r["exits"]) if triggered else "守扣抵值續抱",
-            "breached": close <= stop,
+            "stk": stk, "name": v["name"], "price": price, "chg": v["chg"],
+            "stop": stop, "stop_gap": (stop - price) / price * 100, "breached": price <= stop,
+            "ded": v["ded"], "ded_gap": v["ded_gap"],
+            "cost": pos.get("cost"), "triggered": triggered, "exit_txt": exit_txt,
         })
-    # 最該注意的排前面：已觸發移動出場 > 已破止損 > 距止損近
     pos_rows.sort(key=lambda p: (not p["triggered"], not p["breached"], p["stop_gap"]))
 
     trs_pos = []
     for p in pos_rows:
         pnl_cell = "—"
         if p["cost"]:
-            pl = (p["close"] - p["cost"]) / p["cost"] * 100
+            pl = (p["price"] - p["cost"]) / p["cost"] * 100
             pnl_cell = f'<span class="num {"up" if pl >= 0 else "down"}">{pct(pl)}</span>'
         stop_cls = "warn" if p["breached"] else ""
         move = (f'<span class="pill bad">⚠️ 了結</span>' if p["triggered"]
                 else '<span class="pill watch">續抱</span>')
         trs_pos.append(
             f'<tr><td class="name">{p["stk"]} {html.escape(p["name"])}</td>'
-            f'<td class="num">{fmt(p["close"])}</td>'
+            f'<td class="num">{fmt(p["price"])}</td>'
             f'<td class="num {"up" if p["chg"] >= 0 else "down"}">{pct(p["chg"])}</td>'
             f'<td>{pnl_cell}</td>'
             f'<td class="num {stop_cls}">{fmt(p["stop"])}</td>'
@@ -191,7 +233,7 @@ def render():
     if not trs_pos:
         pos_section = ('<div class="empty">目前沒有持倉。買進後告訴我，或執行：<br>'
                        '<code>python3 manage_positions.py --add 代號 成本=價格 股數=張數 停損=價格 目標=價格</code>'
-                       '<br>加入後這裡就會顯示每檔的止損與停利條件。</div>')
+                       '<br>加入後這裡就會顯示每檔的止損與賣訊條件。</div>')
     else:
         pos_section = (
             '<div class="tablewrap"><table><thead><tr>'
@@ -201,24 +243,28 @@ def render():
             + "".join(trs_pos) + '</tbody></table></div>')
 
     # 觀察清單表
-    rows = sorted(r_all.items(),
-                  key=lambda kv: (bool(kv[1]["killed"]), -kv[1]["score"]))
+    watch = [(s, v) for s, v in view.items() if s not in positions]
+    watch.sort(key=lambda sv: (bool(sv[1]["killed"]), -sv[1]["score"]))
     trs = []
-    for stk, r in rows:
-        if stk in positions:
-            continue
-        ep = entry_plan(r)
-        chg_cls = "up" if r["chg_pct"] >= 0 else "down"
-        detail = ep["reason"] or ep["notes"] or "—"
+    for stk, v in watch:
+        if v["killed"]:
+            status, cls = "不符濾網", "bad"
+            detail = "；".join(v["killed"])
+        elif v["score"] >= 3:
+            status, cls, detail = "可進場觀察", "go", ("已站上觸發價" if v["gap"] <= 0 else "—")
+        else:
+            status, cls, detail = "候選觀察", "watch", ("已站上觸發價" if v["gap"] <= 0 else "—")
+        chg_cls = "up" if v["chg"] >= 0 else "down"
+        risk = (v["price"] - v["stop"]) / v["price"] * 100
         trs.append(
-            f'<tr><td class="name">{stk} {html.escape(r["name"])}</td>'
-            f'<td class="num">{fmt(r["close"])}</td>'
-            f'<td class="num {chg_cls}">{pct(r["chg_pct"])}</td>'
-            f'<td><span class="pill {ep["cls"]}">{ep["status"]}</span></td>'
-            f'<td class="num">{fmt(ep["trigger"])}</td>'
-            f'<td class="num">{pct(ep["gap"])}</td>'
-            f'<td class="num">{fmt(ep["stop"])}</td>'
-            f'<td class="num">{ep["risk"]:.1f}%</td>'
+            f'<tr><td class="name">{stk} {html.escape(v["name"])}</td>'
+            f'<td class="num">{fmt(v["price"])}</td>'
+            f'<td class="num {chg_cls}">{pct(v["chg"])}</td>'
+            f'<td><span class="pill {cls}">{status}</span></td>'
+            f'<td class="num">{fmt(v["trigger"])}</td>'
+            f'<td class="num">{pct(v["gap"])}</td>'
+            f'<td class="num">{fmt(v["stop"])}</td>'
+            f'<td class="num">{risk:.1f}%</td>'
             f'<td class="name" style="white-space:normal;color:var(--muted);font-size:12px">{html.escape(detail)}</td>'
             f'</tr>')
     table = (
@@ -228,21 +274,21 @@ def render():
         '<th class="name">說明</th></tr></thead><tbody>'
         + "".join(trs) + '</tbody></table></div>')
 
-    watch_n = len([1 for s in r_all if s not in positions])
     return f"""<title>扣抵值監測儀表板</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{refresh}
 <style>{CSS}</style>
 <div class="wrap">
 <header>
   <h1>扣抵值監測儀表板</h1>
-  <span class="sub">資料日 {last_d}（收盤價）</span>
+  <span class="sub">{mode}</span>
   <div class="chips">
-    <span class="chip">持倉 <b>{len(positions)}</b></span>
-    <span class="chip">觀察 <b>{watch_n}</b></span>
+    <span class="chip">持倉 <b>{len(pos_rows)}</b></span>
+    <span class="chip">觀察 <b>{len(watch)}</b></span>
   </div>
 </header>
 
-<h2>我的持倉 · 出場條件<span class="eyebrow">止損＋停利，跌破即出</span></h2>
+<h2>我的持倉 · 出場條件<span class="eyebrow">止損＋賣訊，跌破即出</span></h2>
 {pos_section}
 
 <h2>觀察清單 · 進場條件<span class="eyebrow">觸發＝站上扣抵值且突破昨高</span></h2>
@@ -250,16 +296,20 @@ def render():
 
 <div class="foot">
 <b>怎麼看：</b>進場觸發＝站上該價位才考慮進場（「距觸發」正值代表還要漲多少）；風險＝現價到停損的距離。
-持倉的「止損」跌破就出、「停利目標」到價分批、「移動出場」是守扣抵值續抱、轉弱才了結。<br>
-狀態：<b>可進場觀察</b>＝通過濾網且評分高｜<b>候選觀察</b>＝通過濾網｜<b>不符濾網</b>＝暫不列入（說明欄列原因）。<br>
-數字為收盤價快照，非即時；本頁為技術面判斷輔助，非投資建議，不代表買賣建議。
+持倉「止損」跌破就出、「賣訊(扣抵值)」跌破＝第一賣訊、「移動出場」守扣抵值續抱、跌破轉弱才了結。<br>
+狀態：<b>可進場觀察</b>＝通過濾網且評分高｜<b>候選觀察</b>＝通過濾網｜<b>不符濾網</b>＝暫不列入（說明欄列原因）。
+關鍵價位（止損／扣抵值／觸發）為當日固定值、由前一日收盤算出，與盤中提醒一致；{price_note}。<br>
+本頁為技術面判斷輔助，非投資建議，不代表買賣建議。
 </div>
 </div>"""
 
 
-def main():
-    open(OUT, "w", encoding="utf-8").write(render())
-    print("已產生", OUT)
+def main(realtime=None):
+    import sys
+    if realtime is None:
+        realtime = "--realtime" in sys.argv
+    open(OUT, "w", encoding="utf-8").write(render(realtime))
+    print("已產生", OUT, "（盤中即時）" if realtime else "（收盤）")
 
 
 if __name__ == "__main__":

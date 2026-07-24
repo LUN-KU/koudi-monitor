@@ -44,6 +44,14 @@ def main():
     if stale:
         print("資料過期跳過:", stale)
 
+    # 每次盤中掃描都重算即時儀表板（不論有無訊號），讓網頁與提醒同步更新
+    if not dry:
+        try:
+            import build_dashboard
+            build_dashboard.main(realtime=True)
+        except Exception as e:
+            print("儀表板產生失敗:", e)
+
     prices = quote.get_prices(list(levels))
     hits = []
     for stk, (name, lv) in levels.items():
