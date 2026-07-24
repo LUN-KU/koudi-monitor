@@ -64,7 +64,7 @@ def main():
                          "chg": (q["price"] - lv["prev_close"]) / lv["prev_close"] * 100})
 
     if not hits:
-        print("盤中掃描：無新訊號", datetime.datetime.now().strftime("%H:%M"))
+        print("盤中掃描：無新訊號", tw.strftime("%m/%d %H:%M"))
         return
 
     hits.sort(key=lambda h: (PRIORITY.get(h["kind"], 9), -abs(h["chg"])))
