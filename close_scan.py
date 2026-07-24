@@ -67,6 +67,11 @@ def main():
         alerts.log("進場候選", r["stk"], r["name"], r["close"],
                    f"分{r['score']} {'、'.join(r['notes'])}", "close")
     notify.send(msg)
+    try:
+        import build_dashboard
+        build_dashboard.main()
+    except Exception as e:
+        print("儀表板產生失敗:", e)
     print("已發送收盤掃描，Top", len(top), "檔", datetime.date.today())
 
 

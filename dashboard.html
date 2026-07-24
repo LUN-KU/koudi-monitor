@@ -1,0 +1,95 @@
+<title>扣抵值監測儀表板</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --ink:#1a1f2b; --muted:#5b6472; --line:#e3e6ec;
+  --accent:#12897e; --up:#d33b30; --down:#1a9e5c; --warn:#c9812a; --warnbg:#fbf1de;
+  --chip:#eef0f4;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#10141c; --panel:#161c27; --ink:#e8ecf3; --muted:#94a0b2; --line:#242c3a;
+    --accent:#2bb6a8; --up:#e0483d; --down:#28ac67; --warn:#f2a33c; --warnbg:#2a2113;
+    --chip:#1e2634;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f5f6f8; --panel:#ffffff; --ink:#1a1f2b; --muted:#5b6472; --line:#e3e6ec;
+  --accent:#12897e; --up:#d33b30; --down:#1a9e5c; --warn:#c9812a; --warnbg:#fbf1de; --chip:#eef0f4;
+}
+:root[data-theme="dark"]{
+  --bg:#10141c; --panel:#161c27; --ink:#e8ecf3; --muted:#94a0b2; --line:#242c3a;
+  --accent:#2bb6a8; --up:#e0483d; --down:#28ac67; --warn:#f2a33c; --warnbg:#2a2113; --chip:#1e2634;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Noto Sans TC",sans-serif;
+  line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;
+  padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:24px}
+h1{font-size:20px;letter-spacing:.02em;margin:0;font-weight:650}
+.sub{color:var(--muted);font-size:13px}
+.chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.chip{background:var(--chip);border-radius:999px;padding:3px 11px;font-size:12.5px;color:var(--muted)}
+.chip b{color:var(--ink);font-weight:650}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);
+  margin:32px 0 12px;font-weight:650}
+h2:first-of-type{margin-top:8px}
+.eyebrow{color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500;font-size:12px;margin-left:6px}
+/* 持倉卡 */
+.pos{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);
+  border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.pos-hd{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin-bottom:10px}
+.code{font-weight:650;font-size:16px}
+.pos-hd .price{color:var(--muted);font-size:14px}
+.pnl{margin-left:auto;font-weight:650;font-size:15px}
+.up{color:var(--up)} .down{color:var(--down)}
+.cond{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;font-size:13.5px;align-items:baseline}
+.cond .k{font-weight:600;white-space:nowrap}
+.k.stop{color:var(--warn)} .k.profit{color:var(--up)} .k.warn{color:var(--warn)} .k.ok{color:var(--muted)}
+.cond .v{color:var(--ink)}
+.cond .d{color:var(--muted);text-align:right;white-space:nowrap;font-size:12.5px}
+.empty{background:var(--panel);border:1px dashed var(--line);border-radius:12px;
+  padding:20px;color:var(--muted);font-size:14px}
+.empty code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:12.5px}
+/* 觀察表 */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px}
+th,td{padding:9px 12px;text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;
+  border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+td{border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:none}
+.name{text-align:left}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
+.pill.go{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.pill.watch{background:var(--chip);color:var(--muted)}
+.pill.bad{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.foot{margin-top:28px;color:var(--muted);font-size:12px;line-height:1.7}
+.foot b{color:var(--ink)}
+</style>
+<div class="wrap">
+<header>
+  <h1>扣抵值監測儀表板</h1>
+  <span class="sub">資料日 115/07/20（收盤價）</span>
+  <div class="chips">
+    <span class="chip">持倉 <b>0</b></span>
+    <span class="chip">觀察 <b>37</b></span>
+  </div>
+</header>
+
+<h2>我的持倉 · 出場條件<span class="eyebrow">止損＋停利，跌破即出</span></h2>
+<div class="empty">目前沒有持倉。買進後告訴我，或執行：<br><code>python3 manage_positions.py --add 代號 成本=價格 股數=張數 停損=價格 目標=價格</code><br>加入後這裡就會顯示每檔的止損與停利條件。</div>
+
+<h2>觀察清單 · 進場條件<span class="eyebrow">觸發＝站上扣抵值且突破昨高</span></h2>
+<div class="tablewrap"><table><thead><tr><th class="name">標的</th><th>現價</th><th>漲跌</th><th>狀態</th><th>進場觸發</th><th>距觸發</th><th>停損</th><th>風險</th><th class="name">說明</th></tr></thead><tbody><tr><td class="name">3605 宏致</td><td class="num">94.5</td><td class="num up">+1.8%</td><td><span class="pill go">可進場觀察</span></td><td class="num">94.5</td><td class="num">+0.0%</td><td class="num">90.4</td><td class="num">4.3%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">B止跌轉折、近上月高點、逆勢抗跌、低點墊高、週MA5上揚</td></tr><tr><td class="name">6505 台塑化</td><td class="num">93.2</td><td class="num up">+9.5%</td><td><span class="pill go">可進場觀察</span></td><td class="num">93.6</td><td class="num">+0.4%</td><td class="num">86.6</td><td class="num">7.1%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">近上月高點、逆勢抗跌、低點墊高、週MA5上揚</td></tr><tr><td class="name">1590 亞德客-KY</td><td class="num">1405</td><td class="num down">-1.8%</td><td><span class="pill watch">候選觀察</span></td><td class="num">1430</td><td class="num">+1.8%</td><td class="num">1360</td><td class="num">3.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">近上月高點、量價正常、週MA5上揚</td></tr><tr><td class="name">4566 時碩工業</td><td class="num">69.4</td><td class="num up">+1.5%</td><td><span class="pill watch">候選觀察</span></td><td class="num">71.7</td><td class="num">+3.3%</td><td class="num">68.4</td><td class="num">1.4%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">逆勢抗跌、量價正常、低點墊高、週MA5上揚</td></tr><tr><td class="name">6831 邁科</td><td class="num">670</td><td class="num up">+5.5%</td><td><span class="pill bad">不符濾網</span></td><td class="num">696</td><td class="num">+3.9%</td><td class="num">642</td><td class="num">4.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點35.7%&gt;8%；跌破上月低點</td></tr><tr><td class="name">3017 奇鋐</td><td class="num">2440</td><td class="num up">+7.7%</td><td><span class="pill bad">不符濾網</span></td><td class="num">2490</td><td class="num">+2.0%</td><td class="num">2350</td><td class="num">3.7%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點21.5%&gt;8%；跌破上月低點</td></tr><tr><td class="name">3189 景碩</td><td class="num">785</td><td class="num down">-1.4%</td><td><span class="pill bad">不符濾網</span></td><td class="num">814</td><td class="num">+3.7%</td><td class="num">760</td><td class="num">3.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點13.8%&gt;8%</td></tr><tr><td class="name">5347 世界</td><td class="num">168.5</td><td class="num down">-1.5%</td><td><span class="pill bad">不符濾網</span></td><td class="num">177</td><td class="num">+5.0%</td><td class="num">165.5</td><td class="num">1.8%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點32.3%&gt;8%</td></tr><tr><td class="name">2327 國巨</td><td class="num">642</td><td class="num down">-7.8%</td><td><span class="pill bad">不符濾網</span></td><td class="num">685</td><td class="num">+6.7%</td><td class="num">639</td><td class="num">0.5%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點79.9%&gt;8%；跌破上月低點；跌破上週低點；MA5之下未站回</td></tr><tr><td class="name">3037 欣興</td><td class="num">896</td><td class="num down">-1.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">918</td><td class="num">+2.5%</td><td class="num">872</td><td class="num">2.7%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點22.8%&gt;8%；跌破上月低點</td></tr><tr><td class="name">2395 研華</td><td class="num">516</td><td class="num up">+0.6%</td><td><span class="pill bad">不符濾網</span></td><td class="num">529</td><td class="num">+2.5%</td><td class="num">493.5</td><td class="num">4.4%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">MA5之下未站回</td></tr><tr><td class="name">4771 望隼</td><td class="num">194.5</td><td class="num down">-1.0%</td><td><span class="pill bad">不符濾網</span></td><td class="num">198</td><td class="num">+1.8%</td><td class="num">193.5</td><td class="num">0.5%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">3673 TPK-KY</td><td class="num">62.4</td><td class="num down">-4.7%</td><td><span class="pill bad">不符濾網</span></td><td class="num">72.2</td><td class="num">+15.7%</td><td class="num">60</td><td class="num">3.8%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點58.5%&gt;8%；跌破上月低點；跌破上週低點；MA5之下未站回</td></tr><tr><td class="name">2618 長榮航</td><td class="num">40.85</td><td class="num down">-3.0%</td><td><span class="pill bad">不符濾網</span></td><td class="num">42.3</td><td class="num">+3.5%</td><td class="num">40.35</td><td class="num">1.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點11.8%&gt;8%；MA5之下未站回</td></tr><tr><td class="name">2330 台積電</td><td class="num">2320</td><td class="num up">+1.3%</td><td><span class="pill bad">不符濾網</span></td><td class="num">2420</td><td class="num">+4.3%</td><td class="num">2300</td><td class="num">0.9%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點9.3%&gt;8%；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">3706 神達</td><td class="num">88.4</td><td class="num up">+0.1%</td><td><span class="pill bad">不符濾網</span></td><td class="num">89.7</td><td class="num">+1.5%</td><td class="num">85.4</td><td class="num">3.4%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點17.1%&gt;8%；MA5之下未站回</td></tr><tr><td class="name">2059 川湖</td><td class="num">7750</td><td class="num down">-1.8%</td><td><span class="pill bad">不符濾網</span></td><td class="num">8090</td><td class="num">+4.4%</td><td class="num">7610</td><td class="num">1.8%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">6213 聯茂</td><td class="num">322.5</td><td class="num up">+1.1%</td><td><span class="pill bad">不符濾網</span></td><td class="num">348.5</td><td class="num">+8.1%</td><td class="num">312</td><td class="num">3.3%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點16.6%&gt;8%；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">1326 台化</td><td class="num">64.2</td><td class="num down">-2.9%</td><td><span class="pill bad">不符濾網</span></td><td class="num">67.4</td><td class="num">+5.0%</td><td class="num">63.7</td><td class="num">0.8%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">MA5之下未站回</td></tr><tr><td class="name">2634 漢翔</td><td class="num">61.9</td><td class="num down">-3.9%</td><td><span class="pill bad">不符濾網</span></td><td class="num">65</td><td class="num">+5.0%</td><td class="num">60.2</td><td class="num">2.7%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">MA5之下未站回</td></tr><tr><td class="name">2027 大成鋼</td><td class="num">44.4</td><td class="num up">+1.5%</td><td><span class="pill bad">不符濾網</span></td><td class="num">45.5</td><td class="num">+2.5%</td><td class="num">43.2</td><td class="num">2.7%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">跌破上月低點</td></tr><tr><td class="name">6670 復盛應用</td><td class="num">260</td><td class="num up">+0.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">261.5</td><td class="num">+0.6%</td><td class="num">254</td><td class="num">2.3%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點17.1%&gt;8%；MA5之下未站回</td></tr><tr><td class="name">2006 東和鋼鐵</td><td class="num">70</td><td class="num down">-0.3%</td><td><span class="pill bad">不符濾網</span></td><td class="num">71.2</td><td class="num">+1.7%</td><td class="num">69.5</td><td class="num">0.7%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">MA5之下未站回</td></tr><tr><td class="name">6446 藥華藥</td><td class="num">1150</td><td class="num down">-2.5%</td><td><span class="pill bad">不符濾網</span></td><td class="num">1195</td><td class="num">+3.9%</td><td class="num">1125</td><td class="num">2.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點20.0%&gt;8%；跌破上週低點；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">5274 信驊</td><td class="num">15540</td><td class="num up">+0.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">16210</td><td class="num">+4.3%</td><td class="num">15315</td><td class="num">1.4%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點27.9%&gt;8%；跌破上月低點</td></tr><tr><td class="name">6669 緯穎</td><td class="num">4685</td><td class="num up">+1.4%</td><td><span class="pill bad">不符濾網</span></td><td class="num">4905</td><td class="num">+4.7%</td><td class="num">4635</td><td class="num">1.1%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點23.7%&gt;8%；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">2317 鴻海</td><td class="num">234.5</td><td class="num up">+0.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">238.5</td><td class="num">+1.7%</td><td class="num">230.5</td><td class="num">1.7%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點33.9%&gt;8%；跌破上月低點；MA5之下未站回</td></tr><tr><td class="name">6274 台燿</td><td class="num">1125</td><td class="num down">-3.9%</td><td><span class="pill bad">不符濾網</span></td><td class="num">1395</td><td class="num">+24.0%</td><td class="num">1060</td><td class="num">5.8%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點70.7%&gt;8%；跌破上月低點；跌破上週低點；價跌量增長黑；MA5之下未站回</td></tr><tr><td class="name">7795 長廣</td><td class="num">456.5</td><td class="num down">-10.0%</td><td><span class="pill bad">不符濾網</span></td><td class="num">554</td><td class="num">+21.4%</td><td class="num">456.5</td><td class="num">0.0%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點21.8%&gt;8%；跌破上週低點；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">5434 崇越</td><td class="num">544</td><td class="num down">-3.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">556</td><td class="num">+2.2%</td><td class="num">510</td><td class="num">6.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">MA5之下未站回</td></tr><tr><td class="name">3231 緯創</td><td class="num">143.5</td><td class="num up">+3.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">147</td><td class="num">+2.4%</td><td class="num">141.5</td><td class="num">1.4%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點40.1%&gt;8%；跌破上月低點</td></tr><tr><td class="name">2308 台達電</td><td class="num">1705</td><td class="num down">-2.0%</td><td><span class="pill bad">不符濾網</span></td><td class="num">1855</td><td class="num">+8.8%</td><td class="num">1665</td><td class="num">2.3%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點47.8%&gt;8%；跌破上月低點；跌破上週低點；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">9921 巨大</td><td class="num">83.9</td><td class="num down">-3.1%</td><td><span class="pill bad">不符濾網</span></td><td class="num">92</td><td class="num">+9.7%</td><td class="num">82.2</td><td class="num">2.0%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">MA5之下未站回</td></tr><tr><td class="name">2303 聯電</td><td class="num">130</td><td class="num down">-9.7%</td><td><span class="pill bad">不符濾網</span></td><td class="num">151</td><td class="num">+16.2%</td><td class="num">130</td><td class="num">0.0%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點42.7%&gt;8%；跌破上週低點；價跌量增長黑；MA5之下未站回</td></tr><tr><td class="name">2383 台光電</td><td class="num">4395</td><td class="num down">-2.2%</td><td><span class="pill bad">不符濾網</span></td><td class="num">4970</td><td class="num">+13.1%</td><td class="num">4180</td><td class="num">4.9%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點37.5%&gt;8%；跌破上月低點；跌破上週低點；週扣抵升+破五週均線；MA5之下未站回</td></tr><tr><td class="name">8046 南電</td><td class="num">1105</td><td class="num down">-3.9%</td><td><span class="pill bad">不符濾網</span></td><td class="num">1290</td><td class="num">+16.7%</td><td class="num">1090</td><td class="num">1.4%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">跌破上週低點；週扣抵升+破五週均線；價跌量增長黑；MA5之下未站回</td></tr><tr><td class="name">1560 中砂</td><td class="num">647</td><td class="num down">-1.4%</td><td><span class="pill bad">不符濾網</span></td><td class="num">675</td><td class="num">+4.3%</td><td class="num">607</td><td class="num">6.2%</td><td class="name" style="white-space:normal;color:var(--muted);font-size:12px">距上月高點20.1%&gt;8%；跌破上週低點；週扣抵升+破五週均線；MA5之下未站回</td></tr></tbody></table></div>
+
+<div class="foot">
+<b>怎麼看：</b>進場觸發＝站上該價位才考慮進場（「距觸發」正值代表還要漲多少）；風險＝現價到停損的距離。
+持倉的「止損」跌破就出、「停利目標」到價分批、「移動出場」是守扣抵值續抱、轉弱才了結。<br>
+狀態：<b>可進場觀察</b>＝通過濾網且評分高｜<b>候選觀察</b>＝通過濾網｜<b>不符濾網</b>＝暫不列入（說明欄列原因）。<br>
+數字為收盤價快照，非即時；本頁為技術面判斷輔助，非投資建議，不代表買賣建議。
+</div>
+</div>
