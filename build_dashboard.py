@@ -165,7 +165,11 @@ def render():
     r_all = analyze_all()
     wl = load_json("watchlist.json", {})
     positions = load_json("positions.json", {})
-    last_d = next(iter(r_all.values()))["last_d"] if r_all else "—"
+    last_d = max((r["last_d"] for r in r_all.values()),
+                 key=lambda d: strategy.to_date(d), default="—")
+    if last_d != "—":
+        dt = strategy.to_date(last_d)
+        last_d = f"{dt.year}/{dt.month:02d}/{dt.day:02d}（週{'一二三四五六日'[dt.weekday()]}）"
 
     # 持倉區
     pos_html = []

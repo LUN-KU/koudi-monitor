@@ -85,32 +85,51 @@ def tpex(stk, ym):
     return None
 
 
+def roc_ym(dstr):
+    """民國日期字串 → (西元年, 月)"""
+    y, m, _ = dstr.split("/")
+    return (int(y) + 1911, int(m))
+
+
+def fetch_month(stk, ym):
+    r = None
+    try:
+        r = twse(stk, ym)
+    except Exception as e:
+        print(stk, ym, "twse err", e, file=sys.stderr)
+    if r:
+        return r, "twse"
+    r = tpex(stk, ym)
+    return (r, "tpex") if r else (None, None)
+
+
 def main():
+    prev_ym, cur_ym = MONTHS
+    prev_key = (int(prev_ym[:4]), int(prev_ym[4:]))
+
     out = {}
     if os.path.exists(OUT):
         cached = json.load(open(OUT))
-        if cached.get("_months") == MONTHS:
-            out = {k: v for k, v in cached.items() if k != "_months" and v.get("rows") and k in WATCH}
+        out = {k: v for k, v in cached.items() if k != "_months" and v.get("rows") and k in WATCH}
 
     for stk, name in WATCH.items():
-        if stk in out and len(out[stk]["rows"]) >= 30:
-            continue
-        rows = []; src = None
-        for ym in MONTHS:
-            r = None
-            try:
-                r = twse(stk, ym)
-            except Exception as e:
-                print(stk, ym, "twse err", e, file=sys.stderr)
+        existing = out.get(stk, {}).get("rows", [])
+        by_date = {r["d"]: r for r in existing}
+        src = out.get(stk, {}).get("src")
+        have_prev = any(roc_ym(d) == prev_key for d in by_date)
+
+        # 上個月：沒快取才抓；當月：一律重抓（每天長新 K 棒）
+        for ym, need in ((prev_ym, not have_prev), (cur_ym, True)):
+            if not need:
+                continue
+            r, s = fetch_month(stk, ym)
             if r:
-                src = "twse"
-            else:
-                r = tpex(stk, ym)
-                if r:
-                    src = "tpex"
-            if r:
-                rows += r
+                src = s
+                for row in r:
+                    by_date[row["d"]] = row
             time.sleep(3)
+
+        rows = sorted(by_date.values(), key=lambda x: tuple(int(p) for p in x["d"].split("/")))
         if rows:
             out[stk] = {"name": name, "src": src, "rows": rows}
             json.dump({**out, "_months": MONTHS}, open(OUT, "w"), ensure_ascii=False)
