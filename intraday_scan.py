@@ -4,6 +4,8 @@
 用法：python3 intraday_scan.py [--dry]
 """
 import datetime
+import json
+import os
 import sys
 
 import alerts
@@ -12,6 +14,14 @@ import quote
 import strategy
 
 PRIORITY = {"賣訊": 0, "進場觀察": 1, "轉強": 2, "警戒": 3}
+ENTRY_KINDS = {"進場觀察", "轉強"}   # 只發給觀察清單（想買的）
+EXIT_KINDS = {"賣訊", "警戒"}        # 只發給持股（想賣的）
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _load(name):
+    p = os.path.join(HERE, name)
+    return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
 
 
 def main():
@@ -52,35 +62,57 @@ def main():
         except Exception as e:
             print("儀表板產生失敗:", e)
 
+    positions = set(_load("positions.json"))
+    watchlist = set(_load("watchlist.json"))
+    # 觀察清單進場精準度：只有通過當日濾網（未被刪、評分≥2）的標的才發進場訊號
+    passed = {}
+    for stk in levels:
+        if stk in watchlist and stk not in positions:
+            r = strategy.analyze(data[stk]["rows"])
+            passed[stk] = bool(r) and not r["killed"] and r["score"] >= 2
+
     prices = quote.get_prices(list(levels))
     hits = []
     for stk, (name, lv) in levels.items():
+        role = "pos" if stk in positions else ("watch" if stk in watchlist else None)
+        if role is None:
+            continue
         q = prices.get(stk)
         if not q:
             continue
         for sig in strategy.intraday_signals(lv, q["price"]):
             kind, detail = sig["kind"], sig["detail"]
+            # 分角色過濾：持股只看出場、觀察清單只看進場（且需通過濾網）
+            if role == "pos" and kind not in EXIT_KINDS:
+                continue
+            if role == "watch" and (kind not in ENTRY_KINDS or not passed.get(stk)):
+                continue
             if "stop_level" in sig:
                 fire, note = strategy.stop_gate(q["price"], sig["stop_level"], tw)
                 if not fire:
                     continue
                 detail = f"{detail}｜{note}"
-            if alerts.sent_today(kind, stk):
-                continue
-            hits.append({"kind": kind, "stk": stk, "name": name,
+            hits.append({"kind": kind, "stk": stk, "name": name, "role": role,
                          "price": q["price"], "detail": detail,
                          "chg": (q["price"] - lv["prev_close"]) / lv["prev_close"] * 100})
+
+    # 每檔只留最急的一則（賣訊 > 進場 > 轉強 > 警戒），再濾掉今天已發過的
+    best = {}
+    for h in hits:
+        p = PRIORITY.get(h["kind"], 9)
+        if h["stk"] not in best or p < PRIORITY.get(best[h["stk"]]["kind"], 9):
+            best[h["stk"]] = h
+    hits = [h for h in best.values() if not alerts.sent_today(h["kind"], h["stk"])]
 
     if not hits:
         print("盤中掃描：無新訊號", tw.strftime("%m/%d %H:%M"))
         return
 
     hits.sort(key=lambda h: (PRIORITY.get(h["kind"], 9), -abs(h["chg"])))
-    tracked = alerts.tracked()
     lines = [f"<b>⚡ 盤中訊號 {tw.strftime('%m/%d %H:%M')}</b>", ""]
     for h in hits:
         icon = {"賣訊": "🔴", "警戒": "🟡", "進場觀察": "🟢", "轉強": "🔵"}.get(h["kind"], "•")
-        mark = "（持有中）" if h["stk"] in tracked else ""
+        mark = "（持股·出場）" if h["role"] == "pos" else "（觀察·進場）"
         lines.append(f"{icon} <b>{h['kind']}</b> {h['stk']} {h['name']} "
                      f"{h['price']} ({h['chg']:+.1f}%){mark}\n   {h['detail']}")
     lines.append("")
