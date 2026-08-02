@@ -78,7 +78,7 @@ def main():
         if role is None:
             continue
         q = prices.get(stk)
-        if not q:
+        if not q or q["price"] <= 0:  # 防呆：無效/0 報價一律略過，不亂發
             continue
         for sig in strategy.intraday_signals(lv, q["price"]):
             kind, detail = sig["kind"], sig["detail"]

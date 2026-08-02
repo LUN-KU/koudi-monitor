@@ -18,6 +18,16 @@ def _f(s):
         return None
 
 
+def _pos(*cands):
+    """回傳第一個「大於 0」的數字；0、負值、'-' 都視為無效。
+    漲停鎖死時 z(成交價) 可能是 '-' 或 0，需退到最佳買/賣價、昨收。"""
+    for c in cands:
+        v = _f(c)
+        if v is not None and v > 0:
+            return v
+    return None
+
+
 def _fetch(chs):
     url = API.format("|".join(chs))
     req = urllib.request.Request(url, headers=HDR)
@@ -42,14 +52,15 @@ def get_prices(stks):
                 continue
             got = set()
             for m in arr:
-                # z=成交價，成交前為 '-'，退而用 y=昨收 或 最佳買價
-                price = _f(m.get("z"))
+                # 依序取 成交價 → 最佳買價 → 最佳賣價 → 昨收，只接受 >0
+                price = _pos(
+                    m.get("z"),
+                    (m.get("b") or "").split("_")[0],
+                    (m.get("a") or "").split("_")[0],
+                    m.get("y"),
+                )
                 if price is None:
-                    price = _f((m.get("b") or "-").split("_")[0])
-                if price is None:
-                    price = _f(m.get("y"))
-                if price is None:
-                    continue
+                    continue  # 全部無效 → 不列入，讓下游略過
                 out[m["c"]] = {"price": price, "vol": _f(m.get("v")) or 0, "name": m.get("n", "")}
                 got.add(m["c"])
             misses += [s for s in batch if s not in got]

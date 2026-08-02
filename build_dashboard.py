@@ -73,7 +73,9 @@ def build_view(realtime):
             continue
         q = prices.get(stk)
         today_close = rows[-1]["c"] if last_dt == today else None
-        price = q["price"] if q else (today_close if today_close is not None else rows[-1]["c"])
+        # 只採用 >0 的即時價，否則退回收盤價，避免 0 報價算出 -100%
+        live_price = q["price"] if (q and q["price"] > 0) else None
+        price = live_price if live_price is not None else (today_close if today_close is not None else rows[-1]["c"])
         prev_close = lv["prev_close"]
         ana = r_all.get(stk)
         trigger = max(lv["ded"], lv["prev_high"])
@@ -86,7 +88,7 @@ def build_view(realtime):
             "ded": lv["ded"], "ded_gap": (lv["ded"] - price) / price * 100, "below_ded": price < lv["ded"],
             "killed": ana["killed"] if ana else [], "score": ana["score"] if ana else 0,
             "exits": ana["exits"] if ana else [],
-            "live": bool(q),
+            "live": bool(live_price is not None),
         }
     return view, last_close_date
 
