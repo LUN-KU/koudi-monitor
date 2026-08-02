@@ -124,14 +124,21 @@ def main():
         src = out.get(stk, {}).get("src")
         have_prev = any(roc_ym(d) == prev_key for d in by_date)
 
-        # 上個月：沒快取才抓；當月：一律重抓（每天長新 K 棒）
-        for ym, need in ((prev_ym, not have_prev), (cur_ym, True)):
-            if not need:
-                continue
-            r, s = fetch_month(stk, ym)
-            if r:
-                src = s
-                for row in r:
+        # 當月一律重抓（每天長新 K 棒）
+        cur_rows, s = fetch_month(stk, cur_ym)
+        if cur_rows:
+            src = s
+            for row in cur_rows:
+                by_date[row["d"]] = row
+        time.sleep(3)
+
+        # 換月盲點修正：月初當月資料還少（或上月未快取）時補抓上月，
+        # 才不會漏掉上月最後一個交易日（例：8 月初仍要補抓 7/31）
+        if (not have_prev) or (not cur_rows) or (len(cur_rows) < 5):
+            prev_rows, s2 = fetch_month(stk, prev_ym)
+            if prev_rows:
+                src = s2 or src
+                for row in prev_rows:
                     by_date[row["d"]] = row
             time.sleep(3)
 
