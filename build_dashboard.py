@@ -80,14 +80,20 @@ def build_view(realtime):
         ana = r_all.get(stk)
         trigger = max(lv["ded"], lv["prev_high"])
         stop = lv["prev_low"]
+        ma5 = (lv["ma5_partial"] + price) / 5
+        dev = (price - ma5) / ma5 * 100  # 乖離率
+        # 用與盤中通知完全相同的訊號邏輯（含乖離守門、訊號B止跌轉折）
+        sigs = strategy.intraday_signals(lv, price)
+        entry = next((s for s in sigs if s["kind"] in ("進場觀察", "止跌轉折", "轉強")), None)
         view[stk] = {
             "name": info["name"], "price": price,
             "chg": (price - prev_close) / prev_close * 100 if prev_close else 0,
-            "trigger": trigger, "gap": (trigger - price) / price * 100,
+            "trigger": trigger, "gap": (trigger - price) / price * 100, "dev": dev,
             "stop": stop, "stop_gap": (stop - price) / price * 100, "breached": price <= stop,
             "ded": lv["ded"], "ded_gap": (lv["ded"] - price) / price * 100, "below_ded": price < lv["ded"],
             "killed": ana["killed"] if ana else [], "score": ana["score"] if ana else 0,
             "exits": ana["exits"] if ana else [],
+            "entry_kind": entry["kind"] if entry else None,
             "live": bool(live_price is not None),
         }
     return view, last_close_date
@@ -170,6 +176,7 @@ tr:last-child td{border-bottom:none}
 def render(realtime=False):
     view, last_close_date = build_view(realtime)
     positions = load_json("positions.json", {})
+    watchlist = load_json("watchlist.json", {})
     tw = strategy.taiwan_now()
 
     if last_close_date:
@@ -244,19 +251,29 @@ def render(realtime=False):
             '<th class="name">移動出場</th></tr></thead><tbody>'
             + "".join(trs_pos) + '</tbody></table></div>')
 
-    # 觀察清單表
-    watch = [(s, v) for s, v in view.items() if s not in positions]
-    watch.sort(key=lambda sv: (bool(sv[1]["killed"]), -sv[1]["score"]))
+    # 觀察清單表（狀態＝與盤中通知相同的訊號邏輯：含乖離守門、訊號B）
+    def watch_rank(v):
+        # 有進場訊號的最前，其次候選，被濾網刪的最後
+        return (0 if v["entry_kind"] else (2 if v["killed"] else 1), -v["score"])
+    watch = sorted(((s, v) for s, v in view.items() if s in watchlist and s not in positions),
+                   key=lambda sv: watch_rank(sv[1]))
     trs = []
     for stk, v in watch:
-        if v["killed"]:
+        if v["entry_kind"]:
+            status, cls = v["entry_kind"], "go"          # 進場觀察／止跌轉折／轉強
+            detail = "訊號成立，可留意進場"
+        elif v["killed"]:
             status, cls = "不符濾網", "bad"
             detail = "；".join(v["killed"])
-        elif v["score"] >= 3:
-            status, cls, detail = "可進場觀察", "go", ("已站上觸發價" if v["gap"] <= 0 else "—")
+        elif v["dev"] > 7:
+            status, cls = "乖離過大·不追", "bad"
+            detail = f"離 MA5 {v['dev']:+.1f}%，追高區，等回測"
         else:
-            status, cls, detail = "候選觀察", "watch", ("已站上觸發價" if v["gap"] <= 0 else "—")
+            status, cls = "觀察中", "watch"
+            detail = (f"還差 {v['gap']:+.1f}% 到觸發價" if v["gap"] > 0
+                      else "已站上觸發價但條件未全滿足")
         chg_cls = "up" if v["chg"] >= 0 else "down"
+        dev_cls = "up" if v["dev"] >= 0 else "down"
         risk = (v["price"] - v["stop"]) / v["price"] * 100
         trs.append(
             f'<tr><td class="name">{stk} {html.escape(v["name"])}</td>'
@@ -265,6 +282,7 @@ def render(realtime=False):
             f'<td><span class="pill {cls}">{status}</span></td>'
             f'<td class="num">{fmt(v["trigger"])}</td>'
             f'<td class="num">{pct(v["gap"])}</td>'
+            f'<td class="num {dev_cls}">{pct(v["dev"])}</td>'
             f'<td class="num">{fmt(v["stop"])}</td>'
             f'<td class="num">{risk:.1f}%</td>'
             f'<td class="name" style="white-space:normal;color:var(--muted);font-size:12px">{html.escape(detail)}</td>'
@@ -272,7 +290,7 @@ def render(realtime=False):
     table = (
         '<div class="tablewrap"><table><thead><tr>'
         '<th class="name">標的</th><th>現價</th><th>漲跌</th><th>狀態</th>'
-        '<th>進場觸發</th><th>距觸發</th><th>停損</th><th>風險</th>'
+        '<th>進場觸發</th><th>距觸發</th><th>乖離</th><th>停損</th><th>風險</th>'
         '<th class="name">說明</th></tr></thead><tbody>'
         + "".join(trs) + '</tbody></table></div>')
 
@@ -293,13 +311,13 @@ def render(realtime=False):
 <h2>我的持倉 · 出場條件<span class="eyebrow">止損＋賣訊，跌破即出</span></h2>
 {pos_section}
 
-<h2>觀察清單 · 進場條件<span class="eyebrow">觸發＝站上扣抵值且突破昨高</span></h2>
+<h2>觀察清單 · 進場條件<span class="eyebrow">狀態＝與盤中通知同一套訊號（含乖離守門）</span></h2>
 {table}
 
 <div class="foot">
-<b>怎麼看：</b>進場觸發＝站上該價位才考慮進場（「距觸發」正值代表還要漲多少）；風險＝現價到停損的距離。
-持倉「止損」跌破就出、「賣訊(扣抵值)」跌破＝第一賣訊、「移動出場」守扣抵值續抱、跌破轉弱才了結。<br>
-狀態：<b>可進場觀察</b>＝通過濾網且評分高｜<b>候選觀察</b>＝通過濾網｜<b>不符濾網</b>＝暫不列入（說明欄列原因）。
+<b>怎麼看：</b>進場觸發＝站上該價位才考慮進場（「距觸發」正值＝還要漲多少）；乖離＝現價離 MA5 多遠（正值太大＝追高）；風險＝現價到停損的距離。<br>
+狀態（與盤中 Telegram 通知完全同一套邏輯）：<b>進場觀察／止跌轉折／轉強</b>＝訊號成立可留意｜<b>觀察中</b>＝還沒到位｜<b>乖離過大·不追</b>＝離 MA5 逾 7%，追高區、等回測｜<b>不符濾網</b>＝暫不列入（說明欄列原因）。<br>
+持倉「止損」跌破就出、「賣訊(扣抵值)」跌破＝第一賣訊、「移動出場」守扣抵值續抱、跌破轉弱才了結。
 關鍵價位（止損／扣抵值／觸發）為當日固定值、由前一日收盤算出，與盤中提醒一致；{price_note}。<br>
 本頁為技術面判斷輔助，非投資建議，不代表買賣建議。
 </div>
