@@ -148,6 +148,7 @@ def intraday_levels(rows):
     if len(rows) < 8:
         return None
     c = [r["c"] for r in rows]
+    low = [r["l"] for r in rows]
     prev = rows[-1]
     return {
         "base": c[-5],            # 今天的基準價（今天面對的壓力）
@@ -157,6 +158,8 @@ def intraday_levels(rows):
         "prev_high": prev["h"],
         "prev_low": prev["l"],
         "prev_d": prev["d"],
+        "ded_falling": sum(c[-3:]) / 3 < c[-5],   # 扣抵值遞減趨勢（未來要扣的比基準低）
+        "recent_low": min(low[-3:]),              # 近三日最低，判斷「不再創新低」
     }
 
 
@@ -170,10 +173,16 @@ def intraday_signals(lv, price, max_entry_dev=ENTRY_MAX_DEV):
     ma5 = (lv["ma5_partial"] + price) / 5
     dev = (price - ma5) / ma5  # 乖離率
     near_ma5 = dev <= max_entry_dev
+    gap_flip = (lv["ded"] - price) / price * 100  # 還要漲幾% 才站上扣抵值（<=0 已站上）
     sigs = []
     if near_ma5 and price > lv["base"] and price >= lv["ded"] and price > lv["prev_high"]:
         sigs.append({"kind": "進場觀察",
                      "detail": f"站上扣抵值 {lv['ded']}、過昨高 {lv['prev_high']}（乖離 {dev * 100:+.1f}%）"})
+    elif (near_ma5 and lv["ded_falling"] and price >= lv["recent_low"]
+          and -2 <= gap_flip <= 2 and price > lv["prev_high"]):
+        # 訊號B 止跌轉折：扣抵值下降＋不創新低＋貼近扣抵值(漲1~2%即可翻揚MA5)＋過昨高
+        sigs.append({"kind": "止跌轉折",
+                     "detail": f"貼扣抵值 {lv['ded']}(差{gap_flip:+.1f}%)、不創新低、過昨高（乖離 {dev * 100:+.1f}%）"})
     elif near_ma5 and price >= lv["ded"] and lv["prev_close"] < lv["ded"]:
         sigs.append({"kind": "轉強", "detail": f"由下站回扣抵值 {lv['ded']}（乖離 {dev * 100:+.1f}%）"})
     if price < lv["ded"] and lv["prev_close"] >= lv["ded"]:

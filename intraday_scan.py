@@ -13,8 +13,8 @@ import notify
 import quote
 import strategy
 
-PRIORITY = {"賣訊": 0, "進場觀察": 1, "轉強": 2, "警戒": 3}
-ENTRY_KINDS = {"進場觀察", "轉強"}   # 只發給觀察清單（想買的）
+PRIORITY = {"賣訊": 0, "進場觀察": 1, "止跌轉折": 1, "轉強": 2, "警戒": 3}
+ENTRY_KINDS = {"進場觀察", "止跌轉折", "轉強"}   # 只發給觀察清單（想買的）
 EXIT_KINDS = {"賣訊", "警戒"}        # 只發給持股（想賣的）
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -111,7 +111,7 @@ def main():
     hits.sort(key=lambda h: (PRIORITY.get(h["kind"], 9), -abs(h["chg"])))
     lines = [f"<b>⚡ 盤中訊號 {tw.strftime('%m/%d %H:%M')}</b>", ""]
     for h in hits:
-        icon = {"賣訊": "🔴", "警戒": "🟡", "進場觀察": "🟢", "轉強": "🔵"}.get(h["kind"], "•")
+        icon = {"賣訊": "🔴", "警戒": "🟡", "進場觀察": "🟢", "止跌轉折": "🟢", "轉強": "🔵"}.get(h["kind"], "•")
         mark = "（持股·出場）" if h["role"] == "pos" else "（觀察·進場）"
         lines.append(f"{icon} <b>{h['kind']}</b> {h['stk']} {h['name']} "
                      f"{h['price']} ({h['chg']:+.1f}%){mark}\n   {h['detail']}")
