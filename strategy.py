@@ -160,15 +160,22 @@ def intraday_levels(rows):
     }
 
 
-def intraday_signals(lv, price):
+ENTRY_MAX_DEV = 0.07  # 進場乖離上限：離今日 MA5 逾 7% 視為追高，不報進場
+
+
+def intraday_signals(lv, price, max_entry_dev=ENTRY_MAX_DEV):
     """比對現價與關鍵價位，回傳觸發的訊號清單（dict）。
-    賣訊帶 stop_level（＝停損點，用扣抵值），供 stop_gate 做時間閘控。"""
+    賣訊帶 stop_level（＝停損點，用扣抵值），供 stop_gate 做時間閘控。
+    進場訊號加乖離守門：離 MA5 太遠（追高區）不報，符合策略「站上扣抵值要在 MA5 附近轉折、不追噴出紅棒」。"""
     ma5 = (lv["ma5_partial"] + price) / 5
+    dev = (price - ma5) / ma5  # 乖離率
+    near_ma5 = dev <= max_entry_dev
     sigs = []
-    if price > lv["base"] and price >= lv["ded"] and price > lv["prev_high"]:
-        sigs.append({"kind": "進場觀察", "detail": f"站上扣抵值 {lv['ded']} 並過昨高 {lv['prev_high']}"})
-    elif price >= lv["ded"] and lv["prev_close"] < lv["ded"]:
-        sigs.append({"kind": "轉強", "detail": f"由下站回扣抵值 {lv['ded']}"})
+    if near_ma5 and price > lv["base"] and price >= lv["ded"] and price > lv["prev_high"]:
+        sigs.append({"kind": "進場觀察",
+                     "detail": f"站上扣抵值 {lv['ded']}、過昨高 {lv['prev_high']}（乖離 {dev * 100:+.1f}%）"})
+    elif near_ma5 and price >= lv["ded"] and lv["prev_close"] < lv["ded"]:
+        sigs.append({"kind": "轉強", "detail": f"由下站回扣抵值 {lv['ded']}（乖離 {dev * 100:+.1f}%）"})
     if price < lv["ded"] and lv["prev_close"] >= lv["ded"]:
         sigs.append({"kind": "賣訊", "detail": f"跌破扣抵值（停損點）{lv['ded']}",
                      "stop_level": lv["ded"]})
