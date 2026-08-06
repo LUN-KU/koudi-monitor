@@ -88,7 +88,7 @@ def build_view(realtime):
         view[stk] = {
             "name": info["name"], "price": price,
             "chg": (price - prev_close) / prev_close * 100 if prev_close else 0,
-            "trigger": trigger, "gap": (trigger - price) / price * 100, "dev": dev,
+            "trigger": trigger, "gap": (trigger - price) / price * 100, "dev": dev, "ma5": ma5,
             "stop": stop, "stop_gap": (stop - price) / price * 100, "breached": price <= stop,
             "ded": lv["ded"], "ded_gap": (lv["ded"] - price) / price * 100, "below_ded": price < lv["ded"],
             "killed": ana["killed"] if ana else [], "score": ana["score"] if ana else 0,
@@ -259,6 +259,10 @@ def render(realtime=False):
                    key=lambda sv: watch_rank(sv[1]))
     trs = []
     for stk, v in watch:
+        # 進場參考價分兩種模式：貼近 MA5→突破價(站上扣抵值/昨高)；已漲多站上 MA5→回測 MA5 參考價
+        pullback = v["dev"] > 3   # 站上 MA5 逾 3% 視為漲多，改看回測
+        ref = v["ma5"] if pullback else v["trigger"]
+        ref_gap = (ref - v["price"]) / v["price"] * 100
         if v["entry_kind"]:
             status, cls = v["entry_kind"], "go"          # 進場觀察／止跌轉折／轉強
             detail = "訊號成立，可留意進場"
@@ -267,11 +271,14 @@ def render(realtime=False):
             detail = "；".join(v["killed"])
         elif v["dev"] > 7:
             status, cls = "乖離過大·不追", "bad"
-            detail = f"離 MA5 {v['dev']:+.1f}%，追高區，等回測"
+            detail = f"乖離 {v['dev']:+.1f}%，漲多，等回測 MA5≈{fmt(v['ma5'])} 不破再進"
+        elif pullback:
+            status, cls = "漲多·等回測", "watch"
+            detail = f"已站上 MA5 {v['dev']:+.1f}%，等回測 MA5≈{fmt(v['ma5'])} 不破再進，不追突破"
         else:
             status, cls = "觀察中", "watch"
-            detail = (f"還差 {v['gap']:+.1f}% 到觸發價" if v["gap"] > 0
-                      else "已站上觸發價但條件未全滿足")
+            detail = (f"貼近 MA5，站上 {fmt(ref)}（突破）才進，還差 {ref_gap:+.1f}%" if ref_gap > 0
+                      else "已站上突破價，等訊號全滿足")
         chg_cls = "up" if v["chg"] >= 0 else "down"
         dev_cls = "up" if v["dev"] >= 0 else "down"
         risk = (v["price"] - v["stop"]) / v["price"] * 100
@@ -280,8 +287,8 @@ def render(realtime=False):
             f'<td class="num">{fmt(v["price"])}</td>'
             f'<td class="num {chg_cls}">{pct(v["chg"])}</td>'
             f'<td><span class="pill {cls}">{status}</span></td>'
-            f'<td class="num">{fmt(v["trigger"])}</td>'
-            f'<td class="num">{pct(v["gap"])}</td>'
+            f'<td class="num">{fmt(ref)}</td>'
+            f'<td class="num">{pct(ref_gap)}</td>'
             f'<td class="num {dev_cls}">{pct(v["dev"])}</td>'
             f'<td class="num">{fmt(v["stop"])}</td>'
             f'<td class="num">{risk:.1f}%</td>'
@@ -290,7 +297,7 @@ def render(realtime=False):
     table = (
         '<div class="tablewrap"><table><thead><tr>'
         '<th class="name">標的</th><th>現價</th><th>漲跌</th><th>狀態</th>'
-        '<th>進場觸發</th><th>距觸發</th><th>乖離</th><th>停損</th><th>風險</th>'
+        '<th>進場參考</th><th>距參考</th><th>乖離</th><th>停損</th><th>風險</th>'
         '<th class="name">說明</th></tr></thead><tbody>'
         + "".join(trs) + '</tbody></table></div>')
 
@@ -315,8 +322,8 @@ def render(realtime=False):
 {table}
 
 <div class="foot">
-<b>怎麼看：</b>進場觸發＝站上該價位才考慮進場（「距觸發」正值＝還要漲多少）；乖離＝現價離 MA5 多遠（正值太大＝追高）；風險＝現價到停損的距離。<br>
-狀態（與盤中 Telegram 通知完全同一套邏輯）：<b>進場觀察／止跌轉折／轉強</b>＝訊號成立可留意｜<b>觀察中</b>＝還沒到位｜<b>乖離過大·不追</b>＝離 MA5 逾 7%，追高區、等回測｜<b>不符濾網</b>＝暫不列入（說明欄列原因）。<br>
+<b>怎麼看：</b>進場參考＝貼近 MA5 的股票顯示「突破價」（站上才進）；已漲多站上 MA5 的顯示「回測 MA5 參考價」（等拉回不破再進，不追突破）。乖離＝現價離 MA5 多遠；風險＝現價到停損的距離。<br>
+狀態（與盤中 Telegram 通知同一套邏輯）：<b>進場觀察／止跌轉折／轉強</b>＝訊號成立可留意｜<b>觀察中</b>＝貼近 MA5、等突破｜<b>漲多·等回測</b>＝站上 MA5 一段、等回測 MA5｜<b>乖離過大·不追</b>＝離 MA5 逾 7%｜<b>不符濾網</b>＝暫不列入。<br>
 持倉「止損」跌破就出、「賣訊(扣抵值)」跌破＝第一賣訊、「移動出場」守扣抵值續抱、跌破轉弱才了結。
 關鍵價位（止損／扣抵值／觸發）為當日固定值、由前一日收盤算出，與盤中提醒一致；{price_note}。<br>
 本頁為技術面判斷輔助，非投資建議，不代表買賣建議。
