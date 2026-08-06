@@ -282,13 +282,15 @@ def render(realtime=False):
         chg_cls = "up" if v["chg"] >= 0 else "down"
         dev_cls = "up" if v["dev"] >= 0 else "down"
         risk = (v["price"] - v["stop"]) / v["price"] * 100
+        ref_cell = "—" if v["killed"] else fmt(ref)          # 被濾網刪的不給進場參考
+        gap_cell = "—" if v["killed"] else pct(ref_gap)
         trs.append(
             f'<tr><td class="name">{stk} {html.escape(v["name"])}</td>'
             f'<td class="num">{fmt(v["price"])}</td>'
             f'<td class="num {chg_cls}">{pct(v["chg"])}</td>'
             f'<td><span class="pill {cls}">{status}</span></td>'
-            f'<td class="num">{fmt(ref)}</td>'
-            f'<td class="num">{pct(ref_gap)}</td>'
+            f'<td class="num">{ref_cell}</td>'
+            f'<td class="num">{gap_cell}</td>'
             f'<td class="num {dev_cls}">{pct(v["dev"])}</td>'
             f'<td class="num">{fmt(v["stop"])}</td>'
             f'<td class="num">{risk:.1f}%</td>'
