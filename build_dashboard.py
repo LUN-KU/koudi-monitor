@@ -94,6 +94,8 @@ def build_view(realtime):
             "killed": ana["killed"] if ana else [], "score": ana["score"] if ana else 0,
             "exits": ana["exits"] if ana else [],
             "entry_kind": entry["kind"] if entry else None,
+            "wk_base": lv.get("wk_base"),
+            "wk_gap": ((lv["wk_base"] - price) / price * 100) if lv.get("wk_base") else None,
             "live": bool(live_price is not None),
         }
     return view, last_close_date
@@ -279,6 +281,15 @@ def render(realtime=False):
             status, cls = "觀察中", "watch"
             detail = (f"貼近 MA5，站上 {fmt(ref)}（突破）才進，還差 {ref_gap:+.1f}%" if ref_gap > 0
                       else "已站上突破價，等訊號全滿足")
+        # 週基準價提示（只提示、不改狀態）：現價離週MA5基準價太遠代表週線壓力未過、追高風險大
+        if not v["killed"] and v.get("wk_gap") is not None:
+            wg = v["wk_gap"]
+            if wg > 5:
+                detail += f"｜距週基準價 {fmt(v['wk_base'])} 還 +{wg:.1f}%（週MA5未翻揚，追高留意）"
+            elif wg > 0:
+                detail += f"｜距週基準價 +{wg:.1f}%"
+            else:
+                detail += "｜已站上週基準價（週MA5翻揚）"
         chg_cls = "up" if v["chg"] >= 0 else "down"
         dev_cls = "up" if v["dev"] >= 0 else "down"
         risk = (v["price"] - v["stop"]) / v["price"] * 100
