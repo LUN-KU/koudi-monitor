@@ -3,6 +3,8 @@
 用法：python3 close_scan.py [--dry]
 --dry 只印出訊息，不發送。
 """
+import json
+import os
 import sys
 import datetime
 
@@ -11,12 +13,26 @@ import notify
 import strategy
 
 TOP_N = 10
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _universe():
+    """當前觀察清單 ∪ 持倉；掃描只看這些，才不會把已賣出／已換掉、
+    但 kdata 尚未清掉的殘留標的算進通知（與儀表板同一個範圍）。"""
+    u = set(json.load(open(os.path.join(HERE, "watchlist.json"), encoding="utf-8")))
+    p = os.path.join(HERE, "positions.json")
+    if os.path.exists(p):
+        u |= set(json.load(open(p, encoding="utf-8")))
+    return u
 
 
 def build():
     data = strategy.load_kdata()
+    universe = _universe()
     results = []
     for stk, info in data.items():
+        if stk not in universe:
+            continue
         r = strategy.analyze(info["rows"])
         if r:
             r.update(stk=stk, name=info["name"])
