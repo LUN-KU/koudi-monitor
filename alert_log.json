@@ -5018,5 +5018,15 @@
   "price": 22.65,
   "detail": "跌破 MA5 22.86",
   "source": "intraday"
+ },
+ {
+  "ts": "2026-08-19T04:20",
+  "date": "2026-08-19",
+  "kind": "警戒",
+  "stk": "3548",
+  "name": "兆利",
+  "price": 73.8,
+  "detail": "跌破昨日低點 73.9",
+  "source": "intraday"
  }
 ]
