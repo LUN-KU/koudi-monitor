@@ -5528,5 +5528,15 @@
   "price": 74.7,
   "detail": "跌破 MA5 74.78",
   "source": "intraday"
+ },
+ {
+  "ts": "2026-08-21T05:14",
+  "date": "2026-08-21",
+  "kind": "警戒",
+  "stk": "8070",
+  "name": "長華",
+  "price": 48.8,
+  "detail": "跌破昨日低點 48.85",
+  "source": "intraday"
  }
 ]
