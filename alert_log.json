@@ -5698,5 +5698,15 @@
   "price": 36.35,
   "detail": "跌破 MA5 36.46",
   "source": "intraday"
+ },
+ {
+  "ts": "2026-08-24T03:38",
+  "date": "2026-08-24",
+  "kind": "警戒",
+  "stk": "2501",
+  "name": "國建",
+  "price": 22.95,
+  "detail": "跌破 MA5 22.96",
+  "source": "intraday"
  }
 ]
