@@ -5708,5 +5708,15 @@
   "price": 22.95,
   "detail": "跌破 MA5 22.96",
   "source": "intraday"
+ },
+ {
+  "ts": "2026-08-24T04:29",
+  "date": "2026-08-24",
+  "kind": "警戒",
+  "stk": "2408",
+  "name": "南亞科",
+  "price": 505.0,
+  "detail": "跌破昨日低點 512.0",
+  "source": "intraday"
  }
 ]
